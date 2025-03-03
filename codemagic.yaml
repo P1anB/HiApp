@@ -1,0 +1,51 @@
+workflows:
+  cordova-android:
+    name: Cordova Android App
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      java: 11
+      xcode: 16.2
+      vars:
+        CORDOVA_VERSION: 12.0.0
+    scripts:
+      - name: Проверка среды разработки
+        script: |
+          node --version
+          npm --version
+          echo "Текущая директория: $(pwd)"
+          ls -la
+      - name: Проверка структуры проекта
+        script: |
+          if [ -f "config.xml" ]; then
+            echo "Обнаружен файл config.xml"
+          else
+            echo "Файл config.xml не найден"
+          fi
+          if [ -d "www" ]; then
+            echo "Директория www существует"
+          else
+            echo "Директория www не найдена"
+          fi
+      - name: Установка Cordova
+        script: |
+          npm install -g cordova@$CORDOVA_VERSION
+          cordova -v
+      - name: Инициализация проекта Cordova (если необходимо)
+        script: |
+          if [ ! -f "config.xml" ]; then
+            echo "Инициализация нового проекта Cordova"
+            cordova create . com.example.app AppName
+          fi
+      - name: Установка зависимостей проекта
+        script: |
+          npm install
+      - name: Добавление Android платформы
+        script: |
+          cordova platform rm android || true
+          cordova platform add android
+      - name: Сборка APK (debug)
+        script: |
+          cordova build android --debug --verbose
+    artifacts:
+      - platforms/android/app/build/outputs/apk/debug/*.apk
