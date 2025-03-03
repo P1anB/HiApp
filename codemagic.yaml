@@ -20,71 +20,44 @@ workflows:
         script: |
           echo "Текущая директория: $(pwd)"
           ls -la
-      - name: Проверка структуры проекта
+      - name: Установка зависимостей проекта
         script: |
-          if [ -f "config.xml" ]; then
-            echo "Обнаружен файл config.xml"
-          else
-            echo "Файл config.xml не найден"
-          fi
-          if [ -d "www" ]; then
-            echo "Директория www существует"
-          else
-            echo "Директория www не найдена"
+          npm cache clean --force
+          npm install
+      - name: Сборка Vue.js проекта
+        script: |
+          npm run build
+          # Убедимся, что директория dist существует
+          if [ ! -d "dist" ]; then
+            echo "Ошибка: директория dist не найдена после сборки"
+            exit 1
           fi
       - name: Установка Cordova
         script: |
           npm install -g cordova@$CORDOVA_VERSION
           cordova -v
-      - name: Инициализация проекта Cordova
+      - name: Создание Cordova проекта
         script: |
-          # Сначала проверим, является ли это проектом Cordova
-          if [ ! -f "config.xml" ] || [ ! -d "www" ]; then
-            echo "Структура проекта Cordova не обнаружена, создаём новый проект"
-            rm -rf node_modules platforms plugins www config.xml package.json package-lock.json || true
-            cordova create . com.example.app AppName
-            # Копируем существующие исходные файлы, если они есть
-            if [ -d "src" ]; then
-              cp -r src/* www/ || true
-            fi
-          else
-            echo "Проект Cordova обнаружен, продолжаем сборку"
-          fi
-      - name: Установка зависимостей проекта
-        script: |
-          npm cache clean --force
-          rm -f package-lock.json
-          # Проверяем, существует ли package.json
-          if [ ! -f "package.json" ]; then
-            echo "package.json не найден, создаём базовый файл"
-            echo '{
-              "name": "cordova-app",
-              "version": "1.0.0",
-              "description": "Cordova Application",
-              "dependencies": {
-                "cordova-android": "^10.1.2"
-              },
-              "cordova": {
-                "platforms": []
-              }
-            }' > package.json
-          fi
-          npm install
+          # Создаем временную директорию для Cordova проекта
+          mkdir -p cordova_project
+          cd cordova_project
+          
+          # Инициализируем Cordova проект
+          cordova create . com.example.app AppName
+          
+          # Копируем собранное Vue приложение в www директорию Cordova
+          rm -rf www/*
+          cp -r ../dist/* www/
+          
+          # Проверяем, что файлы скопированы успешно
+          ls -la www/
       - name: Добавление Android платформы
         script: |
-          # Проверяем наличие файлов Cordova
-          if [ -f "config.xml" ] && [ -d "www" ]; then
-            echo "Добавляем платформу Android"
-            cordova platform rm android || true
-            cordova platform add android
-          else
-            echo "Ошибка: не удалось обнаружить полную структуру проекта Cordova"
-            echo "Текущая структура директории:"
-            ls -la
-            exit 1
-          fi
+          cd cordova_project
+          cordova platform add android
       - name: Сборка APK (debug)
         script: |
+          cd cordova_project
           cordova build android --debug --verbose
     artifacts:
-      - platforms/android/app/build/outputs/apk/debug/*.apk
+      - cordova_project/platforms/android/app/build/outputs/apk/debug/*.apk
