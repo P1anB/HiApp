@@ -36,21 +36,53 @@ workflows:
         script: |
           npm install -g cordova@$CORDOVA_VERSION
           cordova -v
-      - name: Инициализация проекта Cordova (если необходимо)
+      - name: Инициализация проекта Cordova
         script: |
-          if [ ! -f "config.xml" ]; then
-            echo "Инициализация нового проекта Cordova"
+          # Сначала проверим, является ли это проектом Cordova
+          if [ ! -f "config.xml" ] || [ ! -d "www" ]; then
+            echo "Структура проекта Cordova не обнаружена, создаём новый проект"
+            rm -rf node_modules platforms plugins www config.xml package.json package-lock.json || true
             cordova create . com.example.app AppName
+            # Копируем существующие исходные файлы, если они есть
+            if [ -d "src" ]; then
+              cp -r src/* www/ || true
+            fi
+          else
+            echo "Проект Cordova обнаружен, продолжаем сборку"
           fi
       - name: Установка зависимостей проекта
         script: |
           npm cache clean --force
           rm -f package-lock.json
+          # Проверяем, существует ли package.json
+          if [ ! -f "package.json" ]; then
+            echo "package.json не найден, создаём базовый файл"
+            echo '{
+              "name": "cordova-app",
+              "version": "1.0.0",
+              "description": "Cordova Application",
+              "dependencies": {
+                "cordova-android": "^10.1.2"
+              },
+              "cordova": {
+                "platforms": []
+              }
+            }' > package.json
+          fi
           npm install
       - name: Добавление Android платформы
         script: |
-          cordova platform rm android || true
-          cordova platform add android
+          # Проверяем наличие файлов Cordova
+          if [ -f "config.xml" ] && [ -d "www" ]; then
+            echo "Добавляем платформу Android"
+            cordova platform rm android || true
+            cordova platform add android
+          else
+            echo "Ошибка: не удалось обнаружить полную структуру проекта Cordova"
+            echo "Текущая структура директории:"
+            ls -la
+            exit 1
+          fi
       - name: Сборка APK (debug)
         script: |
           cordova build android --debug --verbose
