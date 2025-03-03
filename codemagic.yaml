@@ -8,11 +8,16 @@ workflows:
       xcode: 16.2
       vars:
         CORDOVA_VERSION: 12.0.0
+        NODE_VERSION: 18.17.1
     scripts:
-      - name: Проверка среды разработки
+      - name: Установка Node.js
         script: |
+          nvm install $NODE_VERSION
+          nvm use $NODE_VERSION
           node --version
           npm --version
+      - name: Проверка среды разработки
+        script: |
           echo "Текущая директория: $(pwd)"
           ls -la
       - name: Проверка структуры проекта
@@ -39,6 +44,8 @@ workflows:
           fi
       - name: Установка зависимостей проекта
         script: |
+          npm cache clean --force
+          rm -f package-lock.json
           npm install
       - name: Добавление Android платформы
         script: |
